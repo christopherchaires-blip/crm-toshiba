@@ -61,19 +61,19 @@
                 <div>
                     <h1 class="text-lg font-bold tracking-wide">CRM de Pedidos y Refacciones</h1>
                     <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                        <i class="fa-solid fa-file-excel text-green-400"></i> Archivo analizado: <span id="fileNameDisplay" class="font-semibold text-blue-300">Ningún archivo cargado</span>
+                        <i class="fa-solid fa-cloud-arrow-down text-green-400"></i> Estado: <span id="fileNameDisplay" class="font-semibold text-blue-300">Cargando datos automáticos...</span>
                     </p>
                 </div>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
+                <button onclick="loadAutomaticExcel()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-rotate"></i> Actualizar Datos
+                </button>
                 <label class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition flex items-center gap-2">
-                    <i class="fa-solid fa-file-excel text-green-400"></i> Subir Excel/CSV
+                    <i class="fa-solid fa-file-excel text-green-400"></i> Subir Manual
                     <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileImport(event)">
                 </label>
-                <button onclick="resetDataToDefault()" title="Limpiar datos" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm transition">
-                    <i class="fa-solid fa-rotate-right"></i>
-                </button>
             </div>
         </div>
     </header>
@@ -245,17 +245,95 @@
         let topItemsChartInstance = null;
 
         window.onload = function() {
-            globalData = [];
-            document.getElementById('fileNameDisplay').innerText = "Ningún archivo cargado";
-            populateCustomerFilter();
-            updateView();
+            // Carga automática al abrir la página web
+            loadAutomaticExcel();
         };
 
-        function resetDataToDefault() {
-            globalData = [];
-            document.getElementById('fileNameDisplay').innerText = "Ningún archivo cargado";
-            populateCustomerFilter();
-            updateView();
+        function loadAutomaticExcel() {
+            document.getElementById('fileNameDisplay').innerText = "Cargando 'pedidos.xlsx'...";
+            // Intenta leer el archivo pedidos.xlsx ubicado en el mismo repositorio de GitHub
+            fetch('pedidos.xlsx?t=' + new Date().getTime()) // Previene caché con timestamp
+                .then(response => {
+                    if (!response.ok) throw new Error("No se encontró el archivo pedidos.xlsx en el repositorio.");
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    processWorkbookData(arrayBuffer, "pedidos.xlsx (Automático)");
+                })
+                .catch(error => {
+                    console.warn(error);
+                    document.getElementById('fileNameDisplay').innerText = "Sube 'pedidos.xlsx' a GitHub o usa 'Subir Manual'";
+                });
+        }
+
+        function processWorkbookData(arrayBuffer, sourceName) {
+            const data = new Uint8Array(arrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            let sheetName = workbook.SheetNames[0];
+            for (let s of workbook.SheetNames) {
+                if (s.toLowerCase().includes('sheet1') || s.toLowerCase().includes('detalle')) {
+                    sheetName = s;
+                    break;
+                }
+            }
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (json.length > 0) {
+                const parsed = [];
+                let startIdx = 1;
+                for (let i = 0; i < json.length; i++) {
+                    const rowStr = JSON.stringify(json[i]).toLowerCase();
+                    if (rowStr.includes('engineer') || rowStr.includes('model') || rowStr.includes('serial')) {
+                        startIdx = i + 1;
+                        break;
+                    }
+                }
+
+                for (let i = startIdx; i < json.length; i++) {
+                    const r = json[i];
+                    if (r && r.length > 0 && r[0]) {
+                        parsed.push({
+                            engineer: String(r[0] || '').trim(),
+                            model: String(r[1] || '').trim(),
+                            serial: String(r[2] || '').trim(),
+                            customer: String(r[3] || '').trim(),
+                            callDate: formatDate(r[4]),
+                            sr: String(r[5] || '').trim(),
+                            task: String(r[6] || '').trim(),
+                            statusSr: String(r[9] || '').trim(),
+                            orderNumber: String(r[10] || '').trim(),
+                            partNum: String(r[12] || '').trim(),
+                            partDesc: String(r[13] || '').trim(),
+                            estatusPedido: String(r[16] || '').trim(),
+                            pedido: String(r[17] || '').trim(),
+                            pendingDays: parseInt(r[18]) || 0,
+                            comments: String(r[19] || '').trim()
+                        });
+                    }
+                }
+                if (parsed.length > 0) {
+                    sortData(parsed);
+                    globalData = parsed;
+                    document.getElementById('fileNameDisplay').innerText = sourceName;
+                    populateCustomerFilter();
+                    updateView();
+                } else {
+                    alert("No se pudieron leer registros válidos del archivo.");
+                }
+            }
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                processWorkbookData(e.target.result, file.name + " (Manual)");
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         function sortData(data) {
@@ -283,73 +361,6 @@
             const strVal = String(value).trim();
             if (strVal.includes('T')) return strVal.split('T')[0];
             return strVal.split(' ')[0];
-        }
-
-        function handleFileImport(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            document.getElementById('fileNameDisplay').innerText = file.name;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                
-                let sheetName = workbook.SheetNames[0];
-                for (let s of workbook.SheetNames) {
-                    if (s.toLowerCase().includes('sheet1') || s.toLowerCase().includes('detalle')) {
-                        sheetName = s;
-                        break;
-                    }
-                }
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                if (json.length > 0) {
-                    const parsed = [];
-                    let startIdx = 1;
-                    for (let i = 0; i < json.length; i++) {
-                        const rowStr = JSON.stringify(json[i]).toLowerCase();
-                        if (rowStr.includes('engineer') || rowStr.includes('model') || rowStr.includes('serial')) {
-                            startIdx = i + 1;
-                            break;
-                        }
-                    }
-
-                    for (let i = startIdx; i < json.length; i++) {
-                        const r = json[i];
-                        if (r && r.length > 0 && r[0]) {
-                            parsed.push({
-                                engineer: String(r[0] || '').trim(),
-                                model: String(r[1] || '').trim(),
-                                serial: String(r[2] || '').trim(),
-                                customer: String(r[3] || '').trim(),
-                                callDate: formatDate(r[4]),
-                                sr: String(r[5] || '').trim(),
-                                task: String(r[6] || '').trim(),
-                                statusSr: String(r[9] || '').trim(),
-                                orderNumber: String(r[10] || '').trim(),
-                                partNum: String(r[12] || '').trim(),
-                                partDesc: String(r[13] || '').trim(),
-                                estatusPedido: String(r[16] || '').trim(),
-                                pedido: String(r[17] || '').trim(),
-                                pendingDays: parseInt(r[18]) || 0,
-                                comments: String(r[19] || '').trim()
-                            });
-                        }
-                    }
-                    if (parsed.length > 0) {
-                        sortData(parsed);
-                        globalData = parsed;
-                        populateCustomerFilter();
-                        updateView();
-                    } else {
-                        alert("No se pudieron leer registros válidos. Verifica que el archivo coincida con el formato del reporte.");
-                    }
-                }
-            };
-            reader.readAsArrayBuffer(file);
         }
 
         function populateCustomerFilter() {
@@ -449,7 +460,6 @@
                 estatusPedidoCounts[ep] = (estatusPedidoCounts[ep] || 0) + 1;
             });
 
-            // Top 5 Part # Calculation (using globalData for all parts requested)
             const itemCounts = {};
             data.forEach(item => {
                 const partNum = item.partNum ? item.partNum.trim() : '';
@@ -543,7 +553,7 @@
                     }]
                 },
                 options: {
-                    indexAxis: 'y', // Gráfica de barras horizontal para mejor lectura de Part #
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
