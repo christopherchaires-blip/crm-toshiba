@@ -61,13 +61,663 @@
                 <div>
                     <h1 class="text-lg font-bold tracking-wide">CRM de Pedidos y Refacciones</h1>
                     <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                        <i class="fa-solid fa-cloud-arrow-down text-green-400"></i> Estado: <span id="fileNameDisplay" class="font-semibold text-blue-300">Cargando 'Pedidos.xlsx'...</span>
+                        <i class="fa-solid fa-file-excel text-green-400"></i> Archivo analizado: <span id="fileNameDisplay" class="font-semibold text-blue-300">Ningún archivo cargado</span>
                     </p>
                 </div>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
-                <button onclick="loadAutomaticExcel()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow">
-                    <i class="fa-solid fa-rotate"></i> Actualizar Datos
+                <label class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-file-excel text-white"></i> Cargar Reporte Excel
+                    <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileImport(event)">
+                </label>
+                <button onclick="resetDataToDefault()" title="Limpiar datos" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm transition">
+                    <i class="fa-solid fa-rotate-right"></i>
                 </button>
-                <label class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition flex items-center gap-2">
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal con Ancho Ampliado -->
+    <main class="w-[98%] mx-auto px-2 py-6 space-y-6">
+
+        <!-- Panel de KPIs / Estadísticas -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase">Órdenes Únicas</p>
+                    <h3 id="kpiTotal" class="text-2xl font-bold text-slate-800">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase">Críticos (>3 Días)</p>
+                    <h3 id="kpiCritical" class="text-2xl font-bold text-red-600">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase">Wait for Parts</p>
+                    <h3 id="kpiWaitParts" class="text-2xl font-bold text-amber-600">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-gears"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase">Down for Parts</p>
+                    <h3 id="kpiDownParts" class="text-2xl font-bold text-orange-600">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase">Sin Procesar</p>
+                    <h3 id="kpiUnprocessed" class="text-2xl font-bold text-slate-700">0</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficos Estadísticos -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-indigo-600"></i> Gráfica Estatus de Pedido
+                </h3>
+                <div class="relative h-72">
+                    <canvas id="estatusPedidoChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-bar text-blue-600"></i> Gráfica de Barras Status SR
+                </h3>
+                <div class="relative h-72">
+                    <canvas id="statusSrBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-ranking-star text-emerald-600"></i> Top 5 Part # más Pedidos
+                </h3>
+                <div class="relative h-72">
+                    <canvas id="topItemsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros y Búsqueda -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div class="relative flex-1 md:w-56">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Buscar orden, serie..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <!-- Filtro Status SR -->
+                <select id="statusSrFilter" onchange="filterTable()" class="py-2 px-3 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Todos Status SR</option>
+                    <option value="Wait for Parts">Wait for Parts</option>
+                    <option value="Down for Parts">Down for Parts</option>
+                    <option value="Wait for Assistance">Wait for Assistance</option>
+                    <option value="Dispatch">Dispatch</option>
+                    <option value="Wait For Time">Wait For Time</option>
+                    <option value="Working">Working</option>
+                </select>
+                <!-- Filtro Estatus Pedido -->
+                <select id="estatusPedidoFilter" onchange="filterTable()" class="py-2 px-3 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Todos Estatus Pedido</option>
+                    <option value="SIN PROCESAR">SIN PROCESAR</option>
+                    <option value="ENVIADO SIN ENTREGAR">ENVIADO SIN ENTREGAR</option>
+                    <option value="SIN ENVIAR">SIN ENVIAR</option>
+                    <option value="ENTREGADO">ENTREGADO</option>
+                </select>
+                <!-- Filtro Clientes -->
+                <select id="customerFilter" onchange="filterTable()" class="py-2 px-3 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xs">
+                    <option value="">Todos los Clientes</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2 w-full md:w-auto justify-end">
+                <button onclick="toggleViewMode()" id="viewModeBtn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group"></i> Ver: Órdenes Únicas
+                </button>
+                <button onclick="filterCritical()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-fire"></i> Críticos (>3 Días)
+                </button>
+                <button onclick="resetFilters()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition">
+                    Restablecer
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabla de Datos -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h3 id="tableTitle" class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-table text-blue-600"></i> Resumen de Órdenes Únicas (Sin Duplicados)
+                </h3>
+                <span id="rowCount" class="text-xs text-slate-500 font-medium">Mostrando 0 registros</span>
+            </div>
+            
+            <!-- Contenedor con scroll horizontal garantizado -->
+            <div class="table-scroll-wrapper">
+                <table id="crmTable" class="w-full min-w-[1300px] text-left border-collapse text-xs">
+                    <thead>
+                        <tr id="tableHeaderRow" class="bg-slate-800 text-white uppercase tracking-wider">
+                            <!-- Se actualiza dinámicamente -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-200">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script -->
+    <script>
+        let globalData = [];
+        let isUniqueView = true;
+        let estatusPedidoChartInstance = null;
+        let statusSrBarChartInstance = null;
+        let topItemsChartInstance = null;
+
+        window.onload = function() {
+            globalData = [];
+            document.getElementById('fileNameDisplay').innerText = "Ningún archivo cargado";
+            populateCustomerFilter();
+            updateView();
+        };
+
+        function resetDataToDefault() {
+            globalData = [];
+            document.getElementById('fileNameDisplay').innerText = "Ningún archivo cargado";
+            populateCustomerFilter();
+            updateView();
+        }
+
+        function sortData(data) {
+            data.sort((a, b) => {
+                if (b.pendingDays !== a.pendingDays) {
+                    return b.pendingDays - a.pendingDays;
+                }
+                const dateA = a.callDate ? new Date(a.callDate) : new Date(0);
+                const dateB = b.callDate ? new Date(b.callDate) : new Date(0);
+                return dateA - dateB;
+            });
+        }
+
+        function formatDate(value) {
+            if (!value) return '';
+            if (!isNaN(value) && Number(value) > 30000) {
+                const date = XLSX.SSF.parse_date_code(Number(value));
+                if (date) {
+                    const y = date.y;
+                    const m = String(date.m).padStart(2, '0');
+                    const d = String(date.d).padStart(2, '0');
+                    return `${y}-${m}-${d}`;
+                }
+            }
+            const strVal = String(value).trim();
+            if (strVal.includes('T')) return strVal.split('T')[0];
+            return strVal.split(' ')[0];
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileNameDisplay').innerText = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                let sheetName = workbook.SheetNames[0];
+                for (let s of workbook.SheetNames) {
+                    if (s.toLowerCase().includes('sheet1') || s.toLowerCase().includes('detalle')) {
+                        sheetName = s;
+                        break;
+                    }
+                }
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (json.length > 0) {
+                    const parsed = [];
+                    let startIdx = 1;
+                    for (let i = 0; i < json.length; i++) {
+                        const rowStr = JSON.stringify(json[i]).toLowerCase();
+                        if (rowStr.includes('engineer') || rowStr.includes('model') || rowStr.includes('serial')) {
+                            startIdx = i + 1;
+                            break;
+                        }
+                    }
+
+                    for (let i = startIdx; i < json.length; i++) {
+                        const r = json[i];
+                        if (r && r.length > 0 && r[0]) {
+                            parsed.push({
+                                engineer: String(r[0] || '').trim(),
+                                model: String(r[1] || '').trim(),
+                                serial: String(r[2] || '').trim(),
+                                customer: String(r[3] || '').trim(),
+                                callDate: formatDate(r[4]),
+                                sr: String(r[5] || '').trim(),
+                                task: String(r[6] || '').trim(),
+                                statusSr: String(r[9] || '').trim(),
+                                orderNumber: String(r[10] || '').trim(),
+                                partNum: String(r[12] || '').trim(),
+                                partDesc: String(r[13] || '').trim(),
+                                estatusPedido: String(r[16] || '').trim(),
+                                pedido: String(r[17] || '').trim(),
+                                pendingDays: parseInt(r[18]) || 0,
+                                comments: String(r[19] || '').trim()
+                            });
+                        }
+                    }
+                    if (parsed.length > 0) {
+                        sortData(parsed);
+                        globalData = parsed;
+                        populateCustomerFilter();
+                        updateView();
+                    } else {
+                        alert("No se pudieron leer registros válidos. Verifica que el archivo coincida con el formato del reporte.");
+                    }
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function populateCustomerFilter() {
+            const select = document.getElementById('customerFilter');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Todos los Clientes</option>';
+            
+            const customers = [...new Set(globalData.map(item => item.customer))].filter(Boolean).sort();
+            customers.forEach(cust => {
+                const opt = document.createElement('option');
+                opt.value = cust;
+                opt.textContent = cust;
+                select.appendChild(opt);
+            });
+            select.value = currentVal;
+        }
+
+        function getUniqueOrdersData(data) {
+            const map = {};
+            data.forEach(item => {
+                const key = item.orderNumber || item.sr || Math.random();
+                if (!map[key]) {
+                    map[key] = { ...item, totalParts: 1, partsList: [item.partNum] };
+                } else {
+                    map[key].totalParts += 1;
+                    if (item.partNum && !map[key].partsList.includes(item.partNum)) {
+                        map[key].partsList.push(item.partNum);
+                    }
+                }
+            });
+            const result = Object.values(map);
+            sortData(result);
+            return result;
+        }
+
+        function toggleViewMode() {
+            isUniqueView = !isUniqueView;
+            const btn = document.getElementById('viewModeBtn');
+            if (isUniqueView) {
+                btn.innerHTML = `<i class="fa-solid fa-layer-group"></i> Ver: Órdenes Únicas`;
+                document.getElementById('tableTitle').innerHTML = `<i class="fa-solid fa-table text-blue-600"></i> Resumen de Órdenes Únicas (Sin Duplicados)`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-table-cells"></i> Ver: Detalle Completo (Partes)`;
+                document.getElementById('tableTitle').innerHTML = `<i class="fa-solid fa-table text-blue-600"></i> Detalle Completo de Pedidos por Refacción`;
+            }
+            updateView();
+        }
+
+        function updateView() {
+            const filtered = getFilteredData();
+            sortData(filtered);
+            renderDashboard(filtered);
+            renderTable(filtered);
+        }
+
+        function getFilteredData() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const statusSr = document.getElementById('statusSrFilter').value;
+            const estatusPedido = document.getElementById('estatusPedidoFilter').value;
+            const customer = document.getElementById('customerFilter').value;
+
+            const filtered = globalData.filter(item => {
+                const matchSearch = Object.values(item).some(val => String(val).toLowerCase().includes(search));
+                const matchStatusSr = statusSr === '' || item.statusSr === statusSr;
+                const matchEstatusPedido = estatusPedido === '' || item.estatusPedido === estatusPedido;
+                const matchCustomer = customer === '' || item.customer === customer;
+                return matchSearch && matchStatusSr && matchEstatusPedido && matchCustomer;
+            });
+
+            sortData(filtered);
+            return filtered;
+        }
+
+        function renderDashboard(data) {
+            const uniqueData = getUniqueOrdersData(data);
+            const total = uniqueData.length;
+            const critical = uniqueData.filter(item => item.pendingDays > 3).length;
+            const waitParts = uniqueData.filter(item => item.statusSr.toLowerCase() === 'wait for parts').length;
+            const downParts = uniqueData.filter(item => item.statusSr.toLowerCase() === 'down for parts').length;
+            const unprocessed = uniqueData.filter(item => item.estatusPedido.toUpperCase().includes('SIN PROCESAR')).length;
+
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiCritical').innerText = critical;
+            document.getElementById('kpiWaitParts').innerText = waitParts;
+            document.getElementById('kpiDownParts').innerText = downParts;
+            document.getElementById('kpiUnprocessed').innerText = unprocessed;
+
+            const statusSrCounts = {};
+            uniqueData.forEach(item => {
+                const st = item.statusSr || 'Desconocido';
+                statusSrCounts[st] = (statusSrCounts[st] || 0) + 1;
+            });
+
+            const estatusPedidoCounts = {};
+            uniqueData.forEach(item => {
+                const ep = item.estatusPedido || 'Desconocido';
+                estatusPedidoCounts[ep] = (estatusPedidoCounts[ep] || 0) + 1;
+            });
+
+            const itemCounts = {};
+            data.forEach(item => {
+                const partNum = item.partNum ? item.partNum.trim() : '';
+                if (partNum && partNum !== '') {
+                    itemCounts[partNum] = (itemCounts[partNum] || 0) + 1;
+                }
+            });
+
+            const sortedItems = Object.entries(itemCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const topLabels = sortedItems.map(i => i[0]);
+            const topValues = sortedItems.map(i => i[1]);
+
+            const dataLabelsConfig = {
+                color: '#fff',
+                font: {
+                    weight: 'bold',
+                    size: 11
+                },
+                formatter: (value) => {
+                    return value > 0 ? value : '';
+                }
+            };
+
+            const ctxEstatusPedido = document.getElementById('estatusPedidoChart').getContext('2d');
+            if (estatusPedidoChartInstance) estatusPedidoChartInstance.destroy();
+            estatusPedidoChartInstance = new Chart(ctxEstatusPedido, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(estatusPedidoCounts),
+                    datasets: [{
+                        data: Object.values(estatusPedidoCounts),
+                        backgroundColor: ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444']
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        datalabels: dataLabelsConfig
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+
+            const ctxStatusSrBar = document.getElementById('statusSrBarChart').getContext('2d');
+            if (statusSrBarChartInstance) statusSrBarChartInstance.destroy();
+            statusSrBarChartInstance = new Chart(ctxStatusSrBar, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(statusSrCounts),
+                    datasets: [{
+                        label: 'Órdenes',
+                        data: Object.values(statusSrCounts),
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        datalabels: {
+                            ...dataLabelsConfig,
+                            color: '#1e293b',
+                            anchor: 'end',
+                            align: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+
+            const ctxTopItems = document.getElementById('topItemsChart').getContext('2d');
+            if (topItemsChartInstance) topItemsChartInstance.destroy();
+            topItemsChartInstance = new Chart(ctxTopItems, {
+                type: 'bar',
+                data: {
+                    labels: topLabels,
+                    datasets: [{
+                        label: 'Cantidad',
+                        data: topValues,
+                        backgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            ...dataLabelsConfig,
+                            color: '#1e293b',
+                            anchor: 'end',
+                            align: 'right'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const thead = document.getElementById('tableHeaderRow');
+            tbody.innerHTML = '';
+
+            const datasetToRender = isUniqueView ? getUniqueOrdersData(data) : data;
+            sortData(datasetToRender);
+
+            if (isUniqueView) {
+                thead.innerHTML = `
+                    <th class="p-3">Engineer</th>
+                    <th class="p-3">Model</th>
+                    <th class="p-3">Serial Number</th>
+                    <th class="p-3">Customer</th>
+                    <th class="p-3">Call Date</th>
+                    <th class="p-3">SR</th>
+                    <th class="p-3">Status SR</th>
+                    <th class="p-3">Order Number</th>
+                    <th class="p-3 text-center">Partes Solicitadas</th>
+                    <th class="p-3">Estatus Pedido</th>
+                    <th class="p-3">Pedido</th>
+                    <th class="p-3 text-center">Pending Days</th>
+                    <th class="p-3 min-w-[280px]">Comentarios de Almacén</th>
+                `;
+
+                datasetToRender.forEach(item => {
+                    const isCritical = item.pendingDays > 3;
+                    const tr = document.createElement('tr');
+                    tr.className = `hover:bg-slate-50 transition border-b border-slate-100 ${isCritical ? 'critical-row' : ''}`;
+
+                    tr.innerHTML = `
+                        <td class="p-3 font-medium">${item.engineer}</td>
+                        <td class="p-3">${item.model}</td>
+                        <td class="p-3 font-mono">${item.serial}</td>
+                        <td class="p-3 font-semibold text-slate-700">${item.customer}</td>
+                        <td class="p-3 whitespace-nowrap">${item.callDate}</td>
+                        <td class="p-3 font-mono">${item.sr}</td>
+                        <td class="p-3"><span class="px-2 py-1 bg-slate-200 rounded font-semibold text-[10px]">${item.statusSr}</span></td>
+                        <td class="p-3 font-mono font-bold text-blue-600">${item.orderNumber}</td>
+                        <td class="p-3 text-center font-bold bg-blue-50 text-blue-700">${item.totalParts} refacción(es)</td>
+                        <td class="p-3"><span class="px-2 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">${item.estatusPedido}</span></td>
+                        <td class="p-3 font-mono">${item.pedido}</td>
+                        <td class="p-3 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isCritical ? 'critical-badge' : 'bg-slate-100 text-slate-700'}">
+                                ${item.pendingDays}
+                            </span>
+                        </td>
+                        <td class="p-3 text-slate-700 whitespace-normal break-words">${item.comments}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                thead.innerHTML = `
+                    <th class="p-3">Engineer</th>
+                    <th class="p-3">Model</th>
+                    <th class="p-3">Serial Number</th>
+                    <th class="p-3">Customer</th>
+                    <th class="p-3">Call Date</th>
+                    <th class="p-3">SR</th>
+                    <th class="p-3">Task</th>
+                    <th class="p-3">Status SR</th>
+                    <th class="p-3">Order Number</th>
+                    <th class="p-3">Part #</th>
+                    <th class="p-3">Part Description</th>
+                    <th class="p-3">Estatus Pedido</th>
+                    <th class="p-3">Pedido</th>
+                    <th class="p-3 text-center">Pending Days</th>
+                    <th class="p-3 min-w-[280px]">Comentarios de Almacén</th>
+                `;
+
+                datasetToRender.forEach(item => {
+                    const isCritical = item.pendingDays > 3;
+                    const tr = document.createElement('tr');
+                    tr.className = `hover:bg-slate-50 transition border-b border-slate-100 ${isCritical ? 'critical-row' : ''}`;
+
+                    tr.innerHTML = `
+                        <td class="p-3 font-medium">${item.engineer}</td>
+                        <td class="p-3">${item.model}</td>
+                        <td class="p-3 font-mono">${item.serial}</td>
+                        <td class="p-3 font-semibold text-slate-700">${item.customer}</td>
+                        <td class="p-3 whitespace-nowrap">${item.callDate}</td>
+                        <td class="p-3 font-mono">${item.sr}</td>
+                        <td class="p-3 font-mono">${item.task}</td>
+                        <td class="p-3"><span class="px-2 py-1 bg-slate-200 rounded font-semibold text-[10px]">${item.statusSr}</span></td>
+                        <td class="p-3 font-mono">${item.orderNumber}</td>
+                        <td class="p-3 font-mono font-semibold">${item.partNum}</td>
+                        <td class="p-3">${item.partDesc}</td>
+                        <td class="p-3"><span class="px-2 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">${item.estatusPedido}</span></td>
+                        <td class="p-3 font-mono">${item.pedido}</td>
+                        <td class="p-3 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isCritical ? 'critical-badge' : 'bg-slate-100 text-slate-700'}">
+                                ${item.pendingDays}
+                            </span>
+                        </td>
+                        <td class="p-3 text-slate-700 whitespace-normal break-words">${item.comments}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('rowCount').innerText = `Mostrando ${datasetToRender.length} registros`;
+        }
+
+        function filterTable() {
+            updateView();
+        }
+
+        function filterCritical() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('statusSrFilter').value = '';
+            document.getElementById('estatusPedidoFilter').value = '';
+            document.getElementById('customerFilter').value = '';
+            
+            const criticalOnly = globalData.filter(item => item.pendingDays > 3);
+            const uniqueCritical = getUniqueOrdersData(criticalOnly);
+            sortData(uniqueCritical);
+            
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            uniqueCritical.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50 transition border-b border-slate-100 critical-row`;
+                tr.innerHTML = `
+                    <td class="p-3 font-medium">${item.engineer}</td>
+                    <td class="p-3">${item.model}</td>
+                    <td class="p-3 font-mono">${item.serial}</td>
+                    <td class="p-3 font-semibold text-slate-700">${item.customer}</td>
+                    <td class="p-3 whitespace-nowrap">${item.callDate}</td>
+                    <td class="p-3 font-mono">${item.sr}</td>
+                    <td class="p-3"><span class="px-2 py-1 bg-slate-200 rounded font-semibold text-[10px]">${item.statusSr}</span></td>
+                    <td class="p-3 font-mono font-bold text-blue-600">${item.orderNumber}</td>
+                    <td class="p-3 text-center font-bold bg-blue-50 text-blue-700">${item.totalParts} refacción(es)</td>
+                    <td class="p-3"><span class="px-2 py-1 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">${item.estatusPedido}</span></td>
+                    <td class="p-3 font-mono">${item.pedido}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold critical-badge">
+                            ${item.pendingDays}
+                        </span>
+                    </td>
+                    <td class="p-3 text-slate-700 whitespace-normal break-words">${item.comments}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('rowCount').innerText = `Mostrando ${uniqueCritical.length} registros críticos`;
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput5').value = '';
+            document.getElementById('statusSrFilter').value = '';
+            document.getElementById('estatusPedidoFilter').value = '';
+            document.getElementById('customerFilter').value = '';
+            updateView();
+        }
+    </script>
+</body>
+</html>
